@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Práctica de Español</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f8ff;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .dialogue-box {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .hidden {
+            display: none;
+        }
+        .tense-tag {
+            background-color: #2196F3;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Práctica de Conversación Española</h1>
+        
+        <div class="controls">
+            <button onclick="generateNewDialogue()">Nuevo Diálogo</button>
+            <button onclick="toggleAudio()" id="audioBtn">▶️ Iniciar Audio</button>
+            <button onclick="toggleTranscript()">📜 Mostrar Texto</button>
+        </div>
+
+        <div id="dialogueContainer" class="hidden">
+            <div class="tense-tag" id="tenseTag"></div>
+            <h3 id="dialogueTitle"></h3>
+            <div id="audioText" class="dialogue-box"></div>
+            <div id="fullTranscript" class="dialogue-box hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        const dialogues = {
+            presente: [
+                {
+                    title: "En el supermercado",
+                    lines: [
+                        "Hola, ¿tienes manzanas frescas?",
+                        "Sí, acaban de llegar estas de Chile",
+                        "¿Y cuánto cuestan las verdes?",
+                        "A 2.50 el kilo, ¿cuántas quiere?"
+                    ]
+                },
+                // 可以添加更多对话...
+            ],
+            pasado: [
+                {
+                    title: "Viaje a Barcelona",
+                    lines: [
+                        "¿Cómo te fue en el viaje?",
+                        "¡Maravilloso! Visitamos la Sagrada Familia",
+                        "¿Y probaron la paella?",
+                        "Sí, comimos en un restaurante típico"
+                    ]
+                }
+            ],
+            futuro: [
+                {
+                    title: "Planes de fin de semana",
+                    lines: [
+                        "¿Qué harás este sábado?",
+                        "Iré al nuevo museo de arte moderno",
+                        "¿Te gustaría compañía?",
+                        "¡Claro! Podemos ir juntos a las 11"
+                    ]
+                }
+            ]
+        };
+
+        let isPlaying = false;
+        let currentUtterances = [];
+        const synth = window.speechSynthesis;
+
+        function generateNewDialogue() {
+            // 停止当前播放
+            synth.cancel();
+            
+            // 随机选择时态
+            const tenses = Object.keys(dialogues);
+            const randomTense = tenses[Math.floor(Math.random() * tenses.length)];
+            
+            // 随机选择对话
+            const dialogs = dialogues[randomTense];
+            const selected = dialogs[Math.floor(Math.random() * dialogs.length)];
+
+            // 更新界面
+            document.getElementById('tenseTag').textContent = `Tiempo verbal: ${randomTense}`;
+            document.getElementById('dialogueTitle').textContent = selected.title;
+            document.getElementById('audioText').innerHTML = selected.lines.map(line => 
+                `<div class="sentence">${line}</div>`).join('');
+            document.getElementById('fullTranscript').textContent = selected.lines.join('\n');
+            document.getElementById('dialogueContainer').classList.remove('hidden');
+        }
+
+        function toggleAudio() {
+            if (isPlaying) {
+                synth.cancel();
+                isPlaying = false;
+                document.getElementById('audioBtn').textContent = '▶️ Iniciar Audio';
+            } else {
+                const lines = Array.from(document.querySelectorAll('.sentence'))
+                                .map(div => div.textContent);
+                speakLines(lines);
+                document.getElementById('audioBtn').textContent = '⏸ Detener Audio';
+                isPlaying = true;
+            }
+        }
+
+        function speakLines(lines) {
+            currentUtterances = lines.map(text => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.rate = 0.9;
+                return utterance;
+            });
+
+            currentUtterances.forEach((utterance, index) => {
+                if (index > 0) {
+                    currentUtterances[index-1].addEventListener('end', () => {
+                        synth.speak(utterance);
+                    });
+                }
+            });
+
+            synth.speak(currentUtterances[0]);
+        }
+
+        function toggleTranscript() {
+            const transcript = document.getElementById('fullTranscript');
+            transcript.classList.toggle('hidden');
+        }
+
+        // 初始化时生成第一个对话
+        generateNewDialogue();
+    </script>
+</body>
+</html>
