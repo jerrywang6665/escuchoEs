@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>西班牙语听力训练</title>
+    <title>高清西语听力训练</title>
     <style>
         :root {
             --primary: #2196F3;
@@ -67,10 +67,6 @@
             transition: transform 0.2s;
         }
 
-        button:hover {
-            transform: translateY(-2px);
-        }
-
         .speed-control {
             display: flex;
             align-items: center;
@@ -80,29 +76,31 @@
             border-radius: 0.5rem;
         }
 
-        .replay-btn {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .sentence-card:hover .replay-btn {
-            opacity: 1;
+        .guide {
+            background: #FFF3E0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>西班牙语听力训练系统</h1>
-        <p>点击句子选择播放 | 支持语速调节和智能复读</p>
+        <h1>高清西班牙语听力训练</h1>
+        <div class="guide">
+            <p>💡 使用提示：</p>
+            <ol>
+                <li>推荐使用最新版Chrome浏览器</li>
+                <li>首次使用请点击"检查语音支持"</li>
+                <li>系统设置中安装高质量西班牙语语音包</li>
+            </ol>
+        </div>
     </div>
 
     <div class="control-panel">
         <div class="controls">
             <button onclick="loadNewDialogue()">🔄 新对话</button>
+            <button onclick="checkVoices()">🔊 检查语音支持</button>
             <button onclick="togglePlayback()" id="playBtn">▶️ 播放全部</button>
             <div class="speed-control">
                 <span>语速：</span>
@@ -115,24 +113,24 @@
     <div id="dialogueContainer"></div>
 
 <script>
-// 对话库数据
+// 增强版对话库
 const DIALOGUES = [
     {
-        title: "餐厅对话",
+        title: "商务会议",
         sentences: [
-            "Buenas tardes, ¿tienen mesa para dos?",
-            "¿Tiene reserva previa?",
-            "No, ¿hay disponibilidad?",
-            "Sí, podemos ubicarlos en terraza"
+            "Empecemos con la presentación del nuevo proyecto",
+            "El objetivo principal es aumentar la cuota de mercado",
+            "¿Qué estrategias concretas proponen?",
+            "Planeamos lanzar una campaña de marketing digital"
         ]
     },
     {
-        title: "问路场景",
+        title: "机场问询",
         sentences: [
-            "Disculpe, ¿dónde está el metro?",
-            "Siga recto dos cuadras y gire a la izquierda",
-            "¿Es muy lejos?",
-            "No, está a unos 10 minutos caminando"
+            "¿Dónde está la sala de embarque internacional?",
+            "Debe pasar por el control de seguridad primero",
+            "¿Cuánto tiempo antes debo llegar a la puerta?",
+            "Recomendamos llegar 45 minutos antes del embarque"
         ]
     }
 ];
@@ -141,27 +139,61 @@ let currentDialogue = [];
 let currentIndex = 0;
 let isPlaying = false;
 let synth = window.speechSynthesis;
+let selectedVoice = null;
 
-// 初始化语音
-function initVoice() {
+// 语音质量优化配置
+const VOICE_PRIORITY = [
+    'Microsoft Helena Desktop',    // Windows 高质量
+    'Google español',             // Chrome 默认
+    'Microsoft Sabina Desktop',   // Windows
+    'Alex'                        // macOS
+];
+
+async function initVoices() {
     return new Promise(resolve => {
         if (synth.getVoices().length > 0) {
             resolve();
         } else {
             synth.onvoiceschanged = resolve;
+            setTimeout(resolve, 1000);
         }
     });
 }
 
-// 获取西班牙语发音人
-function getSpanishVoice() {
+function selectBestVoice() {
     const voices = synth.getVoices();
-    return voices.find(v => v.lang === 'es-ES' || v.lang === 'es-MX') || voices[0];
+    
+    // 优先选择指定名称的语音
+    for (const name of VOICE_PRIORITY) {
+        const voice = voices.find(v => v.name.includes(name));
+        if (voice && (voice.lang === 'es-ES' || voice.lang === 'es-MX')) {
+            return voice;
+        }
+    }
+    
+    // 次选其他西班牙语语音
+    return voices.find(v => v.lang.startsWith('es')) || voices[0];
 }
 
-// 加载新对话
+async function checkVoices() {
+    await initVoices();
+    const voice = selectBestVoice();
+    if (!voice) {
+        alert('未找到西班牙语发音人，请检查系统语音设置');
+        return;
+    }
+    alert(`当前使用语音引擎：${voice.name}\n语言：${voice.lang}`);
+}
+
 async function loadNewDialogue() {
-    await initVoice();
+    await initVoices();
+    selectedVoice = selectBestVoice();
+    
+    if (!selectedVoice) {
+        alert('请先安装西班牙语语音包');
+        return;
+    }
+
     const dialogue = DIALOGUES[Math.floor(Math.random() * DIALOGUES.length)];
     currentDialogue = dialogue.sentences;
     currentIndex = 0;
@@ -172,37 +204,30 @@ async function loadNewDialogue() {
         ${dialogue.sentences.map((text, index) => `
             <div class="sentence-card" data-index="${index}">
                 <div>${text}</div>
-                <button class="replay-btn" onclick="playSentence(${index})">🔊 复读</button>
             </div>
         `).join('')}
     `;
 
-    // 绑定点击事件
     document.querySelectorAll('.sentence-card').forEach((card, index) => {
-        card.addEventListener('click', () => selectSentence(index));
+        card.addEventListener('click', () => playSentence(index));
     });
 }
 
-// 选择指定句子
-function selectSentence(index) {
-    currentIndex = index;
-    document.querySelectorAll('.sentence-card').forEach(card => {
-        card.classList.remove('active');
-    });
-    document.querySelector(`.sentence-card[data-index="${index}"]`).classList.add('active');
-}
-
-// 播放指定句子
 function playSentence(index) {
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(currentDialogue[index]);
-    utterance.voice = getSpanishVoice();
-    utterance.rate = document.getElementById('speed').value;
+    configureSpeech(utterance);
     synth.speak(utterance);
-    selectSentence(index);
+    highlightSentence(index);
 }
 
-// 播放控制
+function configureSpeech(utterance) {
+    utterance.voice = selectedVoice;
+    utterance.rate = document.getElementById('speed').value;
+    utterance.pitch = 1.2;  // 提升音调清晰度
+    utterance.volume = 1.3; // 增强音量
+}
+
 async function togglePlayback() {
     if (isPlaying) {
         synth.cancel();
@@ -218,11 +243,10 @@ async function togglePlayback() {
         if (!isPlaying) break;
         await new Promise(resolve => {
             const utterance = new SpeechSynthesisUtterance(currentDialogue[i]);
-            utterance.voice = getSpanishVoice();
-            utterance.rate = document.getElementById('speed').value;
+            configureSpeech(utterance);
             utterance.onend = resolve;
             synth.speak(utterance);
-            selectSentence(i);
+            highlightSentence(i);
         });
         currentIndex = i + 1;
     }
@@ -230,13 +254,27 @@ async function togglePlayback() {
     document.getElementById('playBtn').textContent = '▶️ 播放全部';
 }
 
+function highlightSentence(index) {
+    document.querySelectorAll('.sentence-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    document.querySelector(`.sentence-card[data-index="${index}"]`).classList. add('active');
+}
+
 // 初始化事件
 document.getElementById('speed').addEventListener('input', function() {
     document.getElementById('speedValue').textContent = `${this.value}x`;
 });
 
-// 首次加载
-loadNewDialogue();
+// 首次加载时检查语音
+window.addEventListener('load', async () => {
+    await initVoices();
+    if (!selectBestVoice()) {
+        document.querySelector('.guide').innerHTML += `
+            <p style="color:red;">⚠ 未检测到西班牙语语音，请安装语音包</p>
+        `;
+    }
+});
 </script>
 </body>
 </html>
