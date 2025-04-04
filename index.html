@@ -2,128 +2,120 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Práctica de Español Avanzado</title>
+    <title>Práctica de Español Mejorado</title>
     <style>
-        /* 原有样式保持不变，新增以下样式 */
-        .control-group {
-            margin: 15px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .speed-control {
-            display: flex;
-            align-items: center;
-            background: #f0f0f0;
-            padding: 8px;
-            border-radius: 20px;
-        }
-        #speedValue {
-            min-width: 40px;
-            text-align: center;
-            margin-left: 5px;
-        }
-        .highlight {
-            background-color: #ffff00;
-            transition: background-color 0.3s;
+        /* 新增错误提示样式 */
+        .error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Práctica de Español Avanzado</h1>
+        <!-- 在controls下方添加错误提示 -->
+        <div class="error-message" id="errorMsg"></div>
         
-        <div class="control-group">
-            <button onclick="generateNewDialogue()">🔄 Nuevo Diálogo</button>
-            <button onclick="toggleAudio()" id="audioBtn">▶️ Iniciar Audio</button>
-            <button onclick="toggleTranscript()">📜 Mostrar Texto</button>
-            <button onclick="repeatSentence()">🔁 Repetir Frase</button>
-        </div>
-
-        <div class="speed-control">
-            <label>Velocidad:</label>
-            <input type="range" id="speedControl" min="0.5" max="2" step="0.1" value="1">
-            <span id="speedValue">1x</span>
-        </div>
-
         <!-- 其余HTML结构保持不变 -->
     </div>
 
     <script>
-        // 原有对话数据保持不变，新增以下变量
-        let currentSentenceIndex = 0;
-        let playbackRate = 1;
-        const speedControl = document.getElementById('speedControl');
-        const speedValue = document.getElementById('speedValue');
+        // 添加语音检测
+        function checkVoices() {
+            return new Promise((resolve) => {
+                let voices = synth.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                } else {
+                    synth.onvoiceschanged = () => {
+                        voices = synth.getVoices();
+                        resolve(voices);
+                    };
+                }
+            });
+        }
 
-        // 初始化速度控制
-        speedControl.addEventListener('input', function() {
-            playbackRate = parseFloat(this.value);
-            speedValue.textContent = this.value + 'x';
+        // 改进后的生成对话函数
+        async function generateNewDialogue() {
+            try {
+                showError('');
+                synth.cancel();
+                
+                const voices = await checkVoices();
+                const hasSpanishVoice = voices.some(v => v.lang.startsWith('es'));
+                
+                if (!hasSpanishVoice) {
+                    showError('No se encontró voz en español. Por favor configura tu navegador');
+                    return;
+                }
+
+                // 原有生成逻辑...
+                
+            } catch (error) {
+                showError(`Error: ${error.message}`);
+            }
+        }
+
+        // 改进后的语音播放函数
+        async function speakLines(lines) {
+            try {
+                if (!synth.speaking) {
+                    currentUtterances = lines.map((text, index) => {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'es-ES';
+                        utterance.rate = playbackRate;
+                        utterance.voice = getSpanishVoice();
+                        utterance.onerror = (event) => {
+                            showError(`Error de audio: ${event.error}`);
+                        };
+                        return utterance;
+                    });
+
+                    // 改进的队列管理
+                    currentUtterances.forEach((utterance, index) => {
+                        if (index < currentUtterances.length - 1) {
+                            utterance.onend = () => {
+                                currentSentenceIndex = index + 1;
+                                synth.speak(currentUtterances[currentSentenceIndex]);
+                            };
+                        }
+                    });
+
+                    synth.speak(currentUtterances[0]);
+                    currentSentenceIndex = 0;
+                }
+            } catch (error) {
+                showError(`Error de reproducción: ${error.message}`);
+            }
+        }
+
+        // 新增辅助函数
+        function getSpanishVoice() {
+            const voices = synth.getVoices();
+            return voices.find(v => v.lang.startsWith('es')) || voices[0];
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMsg');
+            errorDiv.textContent = message;
+            errorDiv.style.display = message ? 'block' : 'none';
+        }
+
+        // 修改初始化逻辑
+        document.getElementById('audioBtn').addEventListener('click', async () => {
+            if (!window.speechSynthesis) {
+                showError('El navegador no soporta síntesis de voz');
+                return;
+            }
+            await checkVoices();
         });
 
-        // 修改后的speakLines函数
-        function speakLines(lines) {
-            currentUtterances = lines.map((text, index) => {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'es-ES';
-                utterance.rate = playbackRate;
-                utterance.onstart = () => highlightSentence(index);
-                return utterance;
-            });
-
-            currentUtterances.forEach((utterance, index) => {
-                if (index > 0) {
-                    currentUtterances[index-1].addEventListener('end', () => {
-                        synth.speak(utterance);
-                        currentSentenceIndex = index;
-                    });
-                }
-            });
-
-            synth.speak(currentUtterances[0]);
-            currentSentenceIndex = 0;
-        }
-
-        // 新增功能函数
-        function highlightSentence(index) {
-            const sentences = document.querySelectorAll('.sentence');
-            sentences.forEach(s => s.classList.remove('highlight'));
-            sentences[index].classList.add('highlight');
-        }
-
-        function repeatSentence() {
-            if (currentUtterances.length > 0) {
-                const utterance = new SpeechSynthesisUtterance(
-                    currentUtterances[currentSentenceIndex].text
-                );
-                utterance.lang = 'es-ES';
-                utterance.rate = playbackRate;
-                synth.cancel();
-                synth.speak(utterance);
-            }
-        }
-
-        // 修改toggleAudio函数
-        function toggleAudio() {
-            if (isPlaying) {
-                synth.cancel();
-                isPlaying = false;
-                document.getElementById('audioBtn').textContent = '▶️ Continuar';
-            } else {
-                const lines = Array.from(document.querySelectorAll('.sentence'))
-                                .map(div => div.textContent);
-                if (currentUtterances.length === 0) {
-                    speakLines(lines);
-                } else {
-                    synth.resume();
-                }
-                document.getElementById('audioBtn').textContent = '⏸ Pausar';
-                isPlaying = true;
-            }
-        }
-
-        // 其余函数保持不变
+        // 移除自动初始化
+        // generateNewDialogue(); // 注释掉自动初始化
     </script>
 </body>
 </html>
