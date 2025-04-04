@@ -1,121 +1,275 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Práctica de Español Mejorado</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>西班牙语听力训练</title>
     <style>
-        /* 新增错误提示样式 */
-        .error-message {
-            color: #d32f2f;
-            background-color: #ffebee;
-            padding: 10px;
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --background-color: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--background-color);
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: #e9ecef;
+            padding: 1rem;
+            border-radius: 25px;
+        }
+
+        #speedValue {
+            min-width: 40px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .dialogue-box {
+            line-height: 1.6;
+            font-size: 1.1rem;
+            padding: 1.5rem;
+            background: #fff;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+
+        .sentence {
+            margin: 0.8rem 0;
+            padding: 0.8rem;
             border-radius: 5px;
-            margin: 10px 0;
-            display: none;
+            transition: background-color 0.3s;
+        }
+
+        .highlight {
+            background-color: #e3f2fd;
+            animation: highlight 1s ease-out;
+        }
+
+        @keyframes highlight {
+            from { background-color: #fff3e0; }
+            to { background-color: #e3f2fd; }
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #6c757d;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 在controls下方添加错误提示 -->
-        <div class="error-message" id="errorMsg"></div>
+        <h1>西班牙语听力训练系统</h1>
         
-        <!-- 其余HTML结构保持不变 -->
+        <div class="controls">
+            <button onclick="generateNewDialogue()">🎲 新对话</button>
+            <button onclick="toggleAudio()" id="audioBtn">▶️ 开始播放</button>
+            <button onclick="repeatSentence()">🔁 复读句子</button>
+            
+            <div class="speed-control">
+                <span>语速:</span>
+                <input type="range" id="speedControl" min="0.5" max="2" step="0.1" value="1">
+                <span id="speedValue">1x</span>
+            </div>
+        </div>
+
+        <div id="dialogueContainer">
+            <div class="dialogue-box">
+                <div id="audioText"></div>
+            </div>
+        </div>
+
+        <footer>点击"新对话"开始练习 | 拖动滑块调节语速 | 点击复读重复当前句子</footer>
     </div>
 
-    <script>
-        // 添加语音检测
-        function checkVoices() {
-            return new Promise((resolve) => {
-                let voices = synth.getVoices();
-                if (voices.length > 0) {
-                    resolve(voices);
-                } else {
-                    synth.onvoiceschanged = () => {
-                        voices = synth.getVoices();
-                        resolve(voices);
-                    };
-                }
-            });
+<script>
+const dialogues = {
+    daily: [
+        {
+            title: "超市购物",
+            lines: [
+                "¿Tienen leche descremada?",
+                "Sí, está en el pasillo 3 al fondo",
+                "¿Y el pan integral?",
+                "Lo sentimos, ya se agotó"
+            ]
+        },
+        {
+            title: "问路场景",
+            lines: [
+                "Disculpe, ¿dónde está la estación de metro?",
+                "Siga recto dos cuadras y gire a la izquierda",
+                "¿Es muy lejos?",
+                "No, está a unos 10 minutos caminando"
+            ]
+        }
+    ],
+    travel: [
+        {
+            title: "酒店入住",
+            lines: [
+                "Buenas tardes, tengo una reserva",
+                "¿A nombre de quién?",
+                "Martínez García, por favor",
+                "Sí, aquí está su habitación doble"
+            ]
+        }
+    ]
+};
+
+let synth = window.speechSynthesis;
+let currentUtterances = [];
+let currentSentenceIndex = 0;
+let playbackRate = 1;
+let isPlaying = false;
+
+// 语音初始化
+function initVoices() {
+    return new Promise(resolve => {
+        if (synth.getVoices().length > 0) {
+            resolve();
+        } else {
+            synth.onvoiceschanged = resolve;
+        }
+    });
+}
+
+// 获取西班牙语发音人
+function getSpanishVoice() {
+    const voices = synth.getVoices();
+    return voices.find(v => v.lang === 'es-ES' || v.lang === 'es-MX') || voices[0];
+}
+
+async function generateNewDialogue() {
+    try {
+        await initVoices();
+        const spanishVoice = getSpanishVoice();
+        
+        if (!spanishVoice) {
+            alert('请确保浏览器支持西班牙语语音\n推荐使用最新版Chrome浏览器');
+            return;
         }
 
-        // 改进后的生成对话函数
-        async function generateNewDialogue() {
-            try {
-                showError('');
-                synth.cancel();
-                
-                const voices = await checkVoices();
-                const hasSpanishVoice = voices.some(v => v.lang.startsWith('es'));
-                
-                if (!hasSpanishVoice) {
-                    showError('No se encontró voz en español. Por favor configura tu navegador');
-                    return;
-                }
+        const category = Object.keys(dialogues)[Math.floor(Math.random()*Object.keys(dialogues).length)];
+        const dialog = dialogues[category][Math.floor(Math.random()*dialogues[category].length)];
 
-                // 原有生成逻辑...
-                
-            } catch (error) {
-                showError(`Error: ${error.message}`);
-            }
+        document.getElementById('audioText').innerHTML = dialog.lines
+            .map(line => `<div class="sentence">${line}</div>`)
+            .join('');
+
+        setupUtterances(dialog.lines, spanishVoice);
+    } catch (error) {
+        console.error('初始化错误:', error);
+    }
+}
+
+function setupUtterances(lines, voice) {
+    currentUtterances = lines.map((text, index) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.voice = voice;
+        utterance.lang = 'es-ES';
+        utterance.rate = playbackRate;
+        utterance.onstart = () => highlightSentence(index);
+        return utterance;
+    });
+
+    // 连接句子播放
+    currentUtterances.forEach((utterance, index) => {
+        if (index < currentUtterances.length - 1) {
+            utterance.onend = () => {
+                currentSentenceIndex = index + 1;
+                synth.speak(currentUtterances[currentSentenceIndex]);
+            };
         }
+    });
+}
 
-        // 改进后的语音播放函数
-        async function speakLines(lines) {
-            try {
-                if (!synth.speaking) {
-                    currentUtterances = lines.map((text, index) => {
-                        const utterance = new SpeechSynthesisUtterance(text);
-                        utterance.lang = 'es-ES';
-                        utterance.rate = playbackRate;
-                        utterance.voice = getSpanishVoice();
-                        utterance.onerror = (event) => {
-                            showError(`Error de audio: ${event.error}`);
-                        };
-                        return utterance;
-                    });
-
-                    // 改进的队列管理
-                    currentUtterances.forEach((utterance, index) => {
-                        if (index < currentUtterances.length - 1) {
-                            utterance.onend = () => {
-                                currentSentenceIndex = index + 1;
-                                synth.speak(currentUtterances[currentSentenceIndex]);
-                            };
-                        }
-                    });
-
-                    synth.speak(currentUtterances[0]);
-                    currentSentenceIndex = 0;
-                }
-            } catch (error) {
-                showError(`Error de reproducción: ${error.message}`);
-            }
+function toggleAudio() {
+    if (isPlaying) {
+        synth.cancel();
+        isPlaying = false;
+        document.getElementById('audioBtn').textContent = '▶️ 继续播放';
+    } else {
+        if (currentUtterances.length > 0) {
+            synth.speak(currentUtterances[currentSentenceIndex]);
+            isPlaying = true;
+            document.getElementById('audioBtn').textContent = '⏸ 暂停播放';
         }
+    }
+}
 
-        // 新增辅助函数
-        function getSpanishVoice() {
-            const voices = synth.getVoices();
-            return voices.find(v => v.lang.startsWith('es')) || voices[0];
-        }
+function repeatSentence() {
+    if (currentUtterances[currentSentenceIndex]) {
+        synth.cancel();
+        synth.speak(currentUtterances[currentSentenceIndex]);
+    }
+}
 
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMsg');
-            errorDiv.textContent = message;
-            errorDiv.style.display = message ? 'block' : 'none';
-        }
+function highlightSentence(index) {
+    document.querySelectorAll('.sentence').forEach((sentence, i) => {
+        sentence.classList.toggle('highlight', i === index);
+    });
+}
 
-        // 修改初始化逻辑
-        document.getElementById('audioBtn').addEventListener('click', async () => {
-            if (!window.speechSynthesis) {
-                showError('El navegador no soporta síntesis de voz');
-                return;
-            }
-            await checkVoices();
-        });
+// 语速控制
+document.getElementById('speedControl').addEventListener('input', function() {
+    playbackRate = parseFloat(this.value);
+    document.getElementById('speedValue').textContent = this.value + 'x';
+    currentUtterances.forEach(u => u.rate = playbackRate);
+});
 
-        // 移除自动初始化
-        // generateNewDialogue(); // 注释掉自动初始化
-    </script>
+// 首次加载提示
+window.onload = () => {
+    if (!window.speechSynthesis) {
+        alert('您的浏览器不支持语音功能，请使用最新版Chrome或Edge浏览器');
+    }
+    generateNewDialogue();
+};
+</script>
 </body>
 </html>
